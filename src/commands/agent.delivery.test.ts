@@ -284,4 +284,36 @@ describe("deliverAgentCommandResult", () => {
     expect(line).toContain("channel=webchat");
     expect(line).toContain("ANNOUNCE_SKIP");
   });
+
+  it("sanitizes standalone HTML errors in JSON output", async () => {
+    const runtime = createRuntime();
+    const htmlError = `<!DOCTYPE html>
+<html>
+  <head><title>Unable to load site</title></head>
+  <body>
+    <p>Unable to load site</p>
+    <a href="https://status.openai.com/">status page</a>
+    <span>Ray ID: 9db04bc5cf66e92d</span>
+  </body>
+</html>`;
+    const result = {
+      payloads: [{ text: htmlError }],
+      meta: { durationMs: 1, stopReason: "error" },
+    };
+
+    await deliverAgentCommandResult({
+      cfg: {} as OpenClawConfig,
+      deps: {} as CliDeps,
+      runtime,
+      opts: { json: true } as never,
+      outboundSession: undefined,
+      sessionEntry: undefined,
+      result,
+      payloads: result.payloads,
+    });
+
+    const logged = String((runtime.log as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] ?? "");
+    expect(logged).toContain("temporarily unavailable");
+    expect(logged).not.toContain("<html>");
+  });
 });

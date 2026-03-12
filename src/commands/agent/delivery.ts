@@ -1,4 +1,9 @@
 import { AGENT_LANE_NESTED } from "../../agents/lanes.js";
+import {
+  isCloudflareOrHtmlErrorPage,
+  isRawApiErrorPayload,
+  sanitizeUserFacingText,
+} from "../../agents/pi-embedded-helpers.js";
 import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/index.js";
 import { createOutboundSendDeps, type CliDeps } from "../../cli/outbound-send-deps.js";
 import type { OpenClawConfig } from "../../config/config.js";
@@ -26,6 +31,26 @@ type RunResult = Awaited<
 >;
 
 const NESTED_LOG_PREFIX = "[agent:nested]";
+
+function sanitizeAgentReplyPayloads(payloads: RunResult["payloads"]): RunResult["payloads"] {
+  return (payloads ?? []).map((payload) => {
+    const rawText = payload.text ?? "";
+    if (!rawText) {
+      return payload;
+    }
+    const errorContext =
+      payload.isError === true ||
+      isCloudflareOrHtmlErrorPage(rawText) ||
+      isRawApiErrorPayload(rawText);
+    if (!errorContext) {
+      return payload;
+    }
+    return {
+      ...payload,
+      text: sanitizeUserFacingText(rawText, { errorContext: true }),
+    };
+  });
+}
 
 function formatNestedLogPrefix(opts: AgentCommandOpts, sessionKey?: string): string {
   const parts = [NESTED_LOG_PREFIX];
@@ -74,7 +99,8 @@ export async function deliverAgentCommandResult(params: {
   result: RunResult;
   payloads: RunResult["payloads"];
 }) {
-  const { cfg, deps, runtime, opts, outboundSession, sessionEntry, payloads, result } = params;
+  const { cfg, deps, runtime, opts, outboundSession, sessionEntry, result } = params;
+  const payloads = sanitizeAgentReplyPayloads(params.payloads);
   const effectiveSessionKey = outboundSession?.key ?? opts.sessionKey;
   const deliver = opts.deliver === true;
   const bestEffortDeliver = opts.bestEffortDeliver === true;

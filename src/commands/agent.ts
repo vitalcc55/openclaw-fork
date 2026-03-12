@@ -36,6 +36,7 @@ import {
   resolveDefaultModelForAgent,
   resolveThinkingDefault,
 } from "../agents/model-selection.js";
+import { sanitizeUserFacingText } from "../agents/pi-embedded-helpers.js";
 import { prepareSessionManagerForRun } from "../agents/pi-embedded-runner/session-manager-init.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import { buildWorkspaceSkillSnapshot } from "../agents/skills.js";
@@ -817,7 +818,10 @@ async function agentCommandInternal(
       });
 
       const finalTextRaw = visibleTextAccumulator.finalizeRaw();
-      const finalText = visibleTextAccumulator.finalize();
+      const finalPayloadText = sanitizeUserFacingText(
+        stopReason === "error" ? finalTextRaw : visibleTextAccumulator.finalize(),
+        { errorContext: stopReason === "error" },
+      );
       try {
         sessionEntry = await persistAcpTurnTranscript({
           body,
@@ -838,7 +842,7 @@ async function agentCommandInternal(
       }
 
       const normalizedFinalPayload = normalizeReplyPayload({
-        text: finalText,
+        text: finalPayloadText,
       });
       const payloads = normalizedFinalPayload ? [normalizedFinalPayload] : [];
       const result = {

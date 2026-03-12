@@ -157,6 +157,18 @@ function createRunTurnFromTextDeltas(chunks: string[]) {
   });
 }
 
+function createRunTurnFromTextDeltasWithStopReason(chunks: string[], stopReason: string) {
+  return vi.fn(async (paramsUnknown: unknown) => {
+    const params = paramsUnknown as {
+      onEvent?: (event: { type: string; text?: string; stopReason?: string }) => Promise<void>;
+    };
+    for (const text of chunks) {
+      await params.onEvent?.({ type: "text_delta", text });
+    }
+    await params.onEvent?.({ type: "done", stopReason });
+  });
+}
+
 function subscribeAssistantEvents() {
   const assistantEvents: Array<{ text?: string; delta?: string }> = [];
   const stop = onAgentEvent((evt) => {
@@ -229,6 +241,44 @@ describe("agentCommand ACP runtime routing", () => {
         .mocked(runtime.log)
         .mock.calls.some(([first]) => typeof first === "string" && first.includes("ACP_OK"));
       expect(hasAckLog).toBe(true);
+    });
+  });
+
+  it("sanitizes standalone HTML ACP errors in JSON output", async () => {
+    await withAcpSessionEnv(async () => {
+      const htmlError = `<!DOCTYPE html>
+<html>
+  <head><title>Unable to load site</title></head>
+  <body>
+    <p>Unable to load site</p>
+    <a href="https://status.openai.com/">status page</a>
+    <span>Ray ID: 9db04bc5cf66e92d</span>
+    <span>If you are using a VPN, try turning it off.</span>
+  </body>
+</html>`;
+      const runTurn = createRunTurnFromTextDeltasWithStopReason([htmlError], "error");
+
+      mockAcpManager({
+        runTurn: (params: unknown) => runTurn(params),
+      });
+
+      await agentCommand(
+        { message: "ping", sessionKey: "agent:codex:acp:test", json: true },
+        runtime,
+      );
+
+      const logged = (runtime.log as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as string;
+      const parsed = JSON.parse(logged) as {
+        payloads: Array<{ text: string }>;
+        meta: { stopReason?: string };
+      };
+      expect(parsed.meta.stopReason).toBe("error");
+      expect(parsed.payloads).toEqual([
+        {
+          text: "The AI service is temporarily unavailable. Please try again in a moment.",
+          mediaUrl: null,
+        },
+      ]);
     });
   });
 
