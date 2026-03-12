@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { resolveNavigatorLocale } from "../lib/registry.ts";
 import { i18n, t } from "../lib/translate.ts";
 
 describe("i18n", () => {
@@ -41,6 +42,11 @@ describe("i18n", () => {
     expect(t("common.health")).toBe("健康状况");
   });
 
+  it("loads Russian translations", async () => {
+    await i18n.setLocale("ru-RU");
+    expect(t("common.health")).toBe("Состояние");
+  });
+
   it("loads saved non-English locale on startup", async () => {
     localStorage.setItem("openclaw.i18n.locale", "zh-CN");
     vi.resetModules();
@@ -52,5 +58,10 @@ describe("i18n", () => {
 
     expect(fresh.i18n.getLocale()).toBe("zh-CN");
     expect(fresh.t("common.health")).toBe("健康状况");
+  });
+
+  it("resolves Russian navigator locales", () => {
+    expect(resolveNavigatorLocale("ru-RU")).toBe("ru-RU");
+    expect(resolveNavigatorLocale("ru")).toBe("ru-RU");
   });
 });

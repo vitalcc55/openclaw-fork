@@ -14,6 +14,8 @@ Docs: https://docs.openclaw.ai
 
 ### Changes
 
+- Gateway/Control UI: add a Russian (`ru-RU`) locale pack for the Control UI and auto-detect Russian browser locales in the dashboard language picker. Thanks @vitalcc55.
+
 ### Fixes
 
 - Cron/proactive delivery: keep isolated direct cron sends out of the write-ahead resend queue so transient-send retries do not replay duplicate proactive messages after restart. (#40646) Thanks @openperf and @vincentkoc.
